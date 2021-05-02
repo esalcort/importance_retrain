@@ -1,0 +1,3 @@
+[submodule "importance-sampling"]
+	path = importance-sampling
+	url = https://github.com/idiap/importance-sampling
