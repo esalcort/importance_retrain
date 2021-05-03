@@ -139,13 +139,49 @@ def main():
     # Train
     if not args.load_model:
         train_time = time.time()
-        history = wrapped.fit(
-            x_train, y_train,
-            batch_size=args.batch_size,
-            epochs=args.epochs,
-            verbose=0,
-            callbacks=[LearningRateScheduler(cifar_step_decay)] if is_cifar else None
-        )
+        if is_cifar:
+            # ------------------------------------------------------------------------------------------
+            # From https://github.com/idiap/importance-sampling/blob/master/examples/cifar10_resnet.py
+            # Create the data augmentation generator
+            datagen = ImageDataGenerator(
+                # set input mean to 0 over the dataset
+                featurewise_center=False,
+                # set each sample mean to 0
+                samplewise_center=False,
+                # divide inputs by std of dataset
+                featurewise_std_normalization=False,
+                # divide each input by its std
+                samplewise_std_normalization=False,
+                # apply ZCA whitening
+                zca_whitening=False,
+                # randomly rotate images in the range (deg 0 to 180)
+                rotation_range=0,
+                # randomly shift images horizontally
+                width_shift_range=0.1,
+                # randomly shift images vertically
+                height_shift_range=0.1,
+                # randomly flip images
+                horizontal_flip=True,
+                # randomly flip images
+                vertical_flip=False)
+            datagen.fit(x_train)
+                # Train the model
+            wrapped.fit_generator(
+                datagen.flow(x_train, y_train, batch_size=args.batch_size),
+                validation_data=(x_test, y_test),
+                epochs=args.epochs,
+                verbose=1,
+                batch_size=args.batch_size,
+                steps_per_epoch=int(np.ceil(float(len(x_train)) / args.batch_size)),
+                callbacks=[LearningRateScheduler(cifar_step_decay)]
+            )
+        else:
+            history = wrapped.fit(
+                x_train, y_train,
+                batch_size=args.batch_size,
+                epochs=args.epochs,
+                verbose=0
+            )
         train_time = time.time() - train_time
         results['train_time'] = train_time
 
