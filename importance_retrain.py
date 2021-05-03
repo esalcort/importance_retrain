@@ -107,6 +107,8 @@ def main():
     assert args.retrain_size < 1 and args.retrain_size >= 0, 'Provide retrain size as a fraction of train data'
     if args.experiment == 'rate_retrain':
         assert args.retrain_rate, 'retrain_rate is required'
+    elif args.experiment == 'threshold_retrain':
+        assert args.retrain_threshold, 'retrain_threshold is required'
 
     # Get Data
     x_train, y_train, x_test, y_test = get_dataset(args.dataset)
@@ -182,7 +184,24 @@ def main():
             verbose=0
         )
         retrain_time = time.time() - retrain_time
-            
+    elif args.experiment == 'threshold_retrain':
+        scores_list = list()
+        def on_evaluate(metrics):
+            scores_list.append(metrics[3])
+        signal("is.evaluate_batch").connect(on_evaluate)
+        retrain_time = time.time()
+        wrapped.model.evaluate(x_retrain, y_retrain)
+        scores = np.concatenate(scores_list).flatten()
+        samples_mask = scores > args.retrain_threshold
+        model.fit(
+            x_retrain[samples_mask], y_retrain[samples_mask],
+            batch_size=args.batch_size,
+            epochs=args.retrain_epochs,
+            verbose=0
+        )
+        retrain_time = time.time() - retrain_time
+        results['th_true_count'] = samples_mask.sum()
+
     results['retrain_time'] = retrain_time
 
     # Evaluate
