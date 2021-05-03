@@ -6,6 +6,8 @@ from keras.optimizers import RMSprop, SGD
 from keras.regularizers import l2
 from keras.callbacks import LearningRateScheduler
 
+from blinker import signal
+import numpy as np
 import argparse
 import time
 import os
@@ -103,6 +105,8 @@ def main():
 
     # Parser checks
     assert args.retrain_size < 1 and args.retrain_size >= 0, 'Provide retrain size as a fraction of train data'
+    if args.experiment == 'rate_retrain':
+        assert args.retrain_rate, 'retrain_rate is required'
 
     # Get Data
     x_train, y_train, x_test, y_test = get_dataset(args.dataset)
@@ -156,6 +160,29 @@ def main():
             verbose=0
         )
         retrain_time = time.time() - retrain_time
+    elif args.experiment == 'rate_retrain':
+        select_count = int(args.retrain_rate * len(x_retrain))
+        if args.random_retrain:
+            sample_idx = np.random.choice(len(x_retrain), select_count)
+            retrain_time = time.time()
+        else:
+            scores_list = list()
+            def on_evaluate(metrics):
+                scores_list.append(metrics[3])
+            signal("is.evaluate_batch").connect(on_evaluate)
+            retrain_time = time.time()
+            wrapped.model.evaluate(x_retrain, y_retrain)
+            scores = np.concatenate(scores_list).flatten()
+            p = scores / scores.sum()
+            sample_idx = np.random.choice(len(x_retrain), select_count, p=p)
+        model.fit(
+            x_retrain[sample_idx], y_retrain[sample_idx],
+            batch_size=args.batch_size,
+            epochs=args.retrain_epochs,
+            verbose=0
+        )
+        retrain_time = time.time() - retrain_time
+            
     results['retrain_time'] = retrain_time
 
     # Evaluate
