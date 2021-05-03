@@ -1,23 +1,25 @@
 import keras
 from keras.datasets import mnist
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.layers import Activation, Dense
 from keras.optimizers import RMSprop, SGD
 from keras.regularizers import l2
+from keras.callbacks import LearningRateScheduler
 
 import argparse
 import time
+import os
 import sys
 sys.path.append('importance-sampling')
 
 from importance_sampling.training import ImportanceTraining
 from importance_sampling.models import wide_resnet
-from importance_sampling.datasets import CIFAR10, ZCAWhitening
+from importance_sampling.datasets import CIFAR10, CIFAR100, ZCAWhitening
 
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('experiment',       choices=['base', 'rate_retrain', 'threshold_retrain'])
-    parser.add_argument('dataset',          choices=['MNIST', 'CIFAR-10'])
+    parser.add_argument('dataset',          choices=['MNIST', 'CIFAR-10', 'CIFAR-100'])
     parser.add_argument('train_score',      choices=['loss', 'gnorm', 'uniform'])
     parser.add_argument('--random_retrain', action='store_true')
     parser.add_argument('--retrain_size',   type=float,   default=0.4)
@@ -27,9 +29,10 @@ def get_parser():
     parser.add_argument('--retrain_epochs',   type=int,     default=1)
     parser.add_argument('--retrain_rate',     type=float)
     parser.add_argument('--retrain_threshold',type=float)
+    parser.add_argument('--load_model')
+    parser.add_argument('--save_model')
 
     return parser
-
 
 def get_dataset(dataset_name):
     if dataset_name == 'MNIST':
@@ -47,9 +50,20 @@ def get_dataset(dataset_name):
         dset = ZCAWhitening(CIFAR10())
         x_train, y_train = dset.train_data[:]
         x_test, y_test = dset.test_data[:]
+    elif dataset_name == 'CIFAR-100': 
+        dset = ZCAWhitening(CIFAR100())
+        x_train, y_train = dset.train_data[:]
+        x_test, y_test = dset.test_data[:]
     else:
         raise Exception('Unknown data set name %s'%(dataset_name))
     return x_train, y_train, x_test, y_test
+
+def cifar_step_decay(epoch, lr):
+    if epoch < 50:
+        return 0.1
+    if epoch < 100:
+        return 0.02
+    return 0.004
 
 def get_dataset_model(dataset_name):
     if dataset_name == 'MNIST':
@@ -71,6 +85,13 @@ def get_dataset_model(dataset_name):
             optimizer=SGD(lr=0.1, momentum=0.9),
             metrics=["accuracy"]
         )
+    elif dataset_name == 'CIFAR-100': 
+        model = wide_resnet(28, 2)((32, 32, 3), 100)
+        model.compile(
+            loss="categorical_crossentropy",
+            optimizer=SGD(lr=0.1, momentum=0.9),
+            metrics=["accuracy"]
+        )
     else:
         raise Exception('Unknown data set name %s'%(dataset_name))
     return model
@@ -78,6 +99,7 @@ def get_dataset_model(dataset_name):
 def main():
     parser = get_parser()
     args = parser.parse_args()
+    is_cifar = 'CIFAR' in args.dataset
 
     # Parser checks
     assert args.retrain_size < 1 and args.retrain_size >= 0, 'Provide retrain size as a fraction of train data'
@@ -92,7 +114,10 @@ def main():
     else:
         x_retrain, y_retrain = [], []
     # Get model
-    model = get_dataset_model(args.dataset)
+    if args.load_model:
+        model = load_model(os.path.join('pre_trained', args.load_model))
+    else:
+        model = get_dataset_model(args.dataset)
 
     if args.train_score != 'uniform':
         wrapped = ImportanceTraining(
@@ -106,15 +131,20 @@ def main():
 
     results = {}
     # Train
-    train_time = time.time()
-    history = wrapped.fit(
-        x_train, y_train,
-        batch_size=args.batch_size,
-        epochs=args.epochs,
-        verbose=0
-    )
-    train_time = time.time() - train_time
-    results['train_time'] = train_time
+    if not args.load_model:
+        train_time = time.time()
+        history = wrapped.fit(
+            x_train, y_train,
+            batch_size=args.batch_size,
+            epochs=args.epochs,
+            verbose=0,
+            callbacks=[LearningRateScheduler(cifar_step_decay)] if is_cifar else None
+        )
+        train_time = time.time() - train_time
+        results['train_time'] = train_time
+
+    if args.save_model:
+        model.save(os.path.join('pre_trained', args.save_model))
 
     # Re-train
     if args.experiment == 'base':
