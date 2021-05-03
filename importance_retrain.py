@@ -2,7 +2,7 @@ import keras
 from keras.datasets import mnist
 from keras.models import Sequential
 from keras.layers import Activation, Dense
-from keras.optimizers import RMSprop
+from keras.optimizers import RMSprop, SGD
 from keras.regularizers import l2
 
 import argparse
@@ -11,11 +11,13 @@ import sys
 sys.path.append('importance-sampling')
 
 from importance_sampling.training import ImportanceTraining
+from importance_sampling.models import wide_resnet
+from importance_sampling.datasets import CIFAR10, ZCAWhitening
 
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('experiment',       choices=['base', 'rate_retrain', 'threshold_retrain'])
-    parser.add_argument('dataset',          choices=['MNIST'])
+    parser.add_argument('dataset',          choices=['MNIST', 'CIFAR-10'])
     parser.add_argument('train_score',      choices=['loss', 'gnorm', 'uniform'])
     parser.add_argument('--random_retrain', action='store_true')
     parser.add_argument('--retrain_size',   type=float,   default=0.4)
@@ -41,6 +43,10 @@ def get_dataset(dataset_name):
         x_test /= 255
         y_train = keras.utils.to_categorical(y_train, num_classes)
         y_test = keras.utils.to_categorical(y_test, num_classes)
+    elif dataset_name == 'CIFAR-10': 
+        dset = ZCAWhitening(CIFAR10())
+        x_train, y_train = dset.train_data[:]
+        x_test, y_test = dset.test_data[:]
     else:
         raise Exception('Unknown data set name %s'%(dataset_name))
     return x_train, y_train, x_test, y_test
@@ -53,10 +59,18 @@ def get_dataset_model(dataset_name):
         model.add(Dense(512, activation='relu', kernel_regularizer=l2(1e-5)))
         model.add(Dense(10, kernel_regularizer=l2(1e-5)))
         model.add(Activation('softmax'))
-        # model.summary()
-        model.compile(loss='categorical_crossentropy',
-        optimizer=RMSprop(),
-        metrics=['accuracy'])
+        model.compile(
+            loss='categorical_crossentropy',
+            optimizer=RMSprop(),
+            metrics=['accuracy']
+        )
+    elif dataset_name == 'CIFAR-10': 
+        model = wide_resnet(28, 2)((32, 32, 3), 10)
+        model.compile(
+            loss="categorical_crossentropy",
+            optimizer=SGD(lr=0.1, momentum=0.9),
+            metrics=["accuracy"]
+        )
     else:
         raise Exception('Unknown data set name %s'%(dataset_name))
     return model
