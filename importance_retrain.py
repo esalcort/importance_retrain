@@ -5,6 +5,7 @@ from keras.layers import Activation, Dense
 from keras.optimizers import RMSprop, SGD
 from keras.regularizers import l2
 from keras.callbacks import LearningRateScheduler
+from keras.preprocessing.image import ImageDataGenerator
 
 from blinker import signal
 import numpy as np
@@ -166,15 +167,22 @@ def main():
                 vertical_flip=False)
             datagen.fit(x_train)
                 # Train the model
-            wrapped.fit_generator(
-                datagen.flow(x_train, y_train, batch_size=args.batch_size),
-                validation_data=(x_test, y_test),
-                epochs=args.epochs,
-                verbose=1,
-                batch_size=args.batch_size,
-                steps_per_epoch=int(np.ceil(float(len(x_train)) / args.batch_size)),
-                callbacks=[LearningRateScheduler(cifar_step_decay)]
-            )
+            if args.train_score == 'uniform':
+                model.fit_generator(
+                    datagen.flow(x_train, y_train, batch_size=args.batch_size),
+                    epochs=args.epochs,
+                    verbose=0,
+                    callbacks=[LearningRateScheduler(cifar_step_decay)]
+                )
+            else:
+                wrapped.fit_generator(
+                    datagen.flow(x_train, y_train, batch_size=args.batch_size),
+                    epochs=args.epochs,
+                    verbose=0,
+                    batch_size=args.batch_size,
+                    steps_per_epoch=int(np.ceil(float(len(x_train)) / args.batch_size)),
+                    callbacks=[LearningRateScheduler(cifar_step_decay)]
+                )
         else:
             history = wrapped.fit(
                 x_train, y_train,
