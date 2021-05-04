@@ -20,6 +20,7 @@ from importance_sampling.training import ImportanceTraining
 from importance_sampling.models import wide_resnet
 from importance_sampling.datasets import CIFAR10, CIFAR100, ZCAWhitening
 from examples.cifar10_resnet import TrainingSchedule
+from importance_sampling.layers.normalization import LayerNormalization
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -136,7 +137,7 @@ def main():
         x_retrain, y_retrain = [], []
     # Get model
     if args.load_model:
-        model = load_model(os.path.join('pre_trained', args.load_model))
+        model = load_model(os.path.join('pre_trained', args.load_model), custom_objects={'LayerNormalization' : LayerNormalization})
     else:
         model, training_schedule = get_dataset_model(args.dataset)
 
