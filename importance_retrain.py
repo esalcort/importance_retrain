@@ -102,7 +102,7 @@ def get_dataset_model(dataset_name):
         )
     elif dataset_name == 'CIFAR-100': 
         model = wide_resnet(28, 2)((32, 32, 3), 100)
-        training_schedule = TrainingSchedule(6 * 3600)
+        training_schedule = TrainingSchedule(3 * 3600)
         model.compile(
             loss="categorical_crossentropy",
             optimizer=SGD(lr=training_schedule.lr, momentum=0.9),
