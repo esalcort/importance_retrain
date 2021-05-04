@@ -172,6 +172,7 @@ def main():
                     datagen.flow(x_train, y_train, batch_size=args.batch_size),
                     epochs=args.epochs,
                     verbose=0,
+                    steps_per_epoch=int(np.ceil(float(len(x_train)) / args.batch_size)),
                     callbacks=[LearningRateScheduler(cifar_step_decay)]
                 )
             else:
