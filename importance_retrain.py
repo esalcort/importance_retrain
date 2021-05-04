@@ -5,6 +5,7 @@ from keras.layers import Activation, Dense
 from keras.optimizers import RMSprop, SGD
 from keras.regularizers import l2
 from keras.callbacks import LearningRateScheduler
+from keras.preprocessing.image import ImageDataGenerator
 
 from blinker import signal
 import numpy as np
@@ -13,10 +14,12 @@ import time
 import os
 import sys
 sys.path.append('importance-sampling')
+sys.path.append('importance-sampling/examples')
 
 from importance_sampling.training import ImportanceTraining
 from importance_sampling.models import wide_resnet
 from importance_sampling.datasets import CIFAR10, CIFAR100, ZCAWhitening
+from examples.cifar10_resnet import TrainingSchedule
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -33,10 +36,12 @@ def get_parser():
     parser.add_argument('--retrain_threshold',type=float)
     parser.add_argument('--load_model')
     parser.add_argument('--save_model')
+    parser.add_argument('--whitening',      action='store_true')
+    parser.add_argument('--augment_data',      action='store_true')
 
     return parser
 
-def get_dataset(dataset_name):
+def get_dataset(dataset_name, whitening=False):
     if dataset_name == 'MNIST':
         (x_train, y_train), (x_test, y_test) = mnist.load_data()
         num_classes = 10
@@ -49,11 +54,17 @@ def get_dataset(dataset_name):
         y_train = keras.utils.to_categorical(y_train, num_classes)
         y_test = keras.utils.to_categorical(y_test, num_classes)
     elif dataset_name == 'CIFAR-10': 
-        dset = ZCAWhitening(CIFAR10())
+        if whitening:
+            dset = ZCAWhitening(CIFAR10())
+        else:
+            dset = CIFAR10()
         x_train, y_train = dset.train_data[:]
         x_test, y_test = dset.test_data[:]
     elif dataset_name == 'CIFAR-100': 
-        dset = ZCAWhitening(CIFAR100())
+        if whitening:
+            dset = ZCAWhitening(CIFAR100())
+        else:
+            dset = CIFAR100()
         x_train, y_train = dset.train_data[:]
         x_test, y_test = dset.test_data[:]
     else:
@@ -68,6 +79,7 @@ def cifar_step_decay(epoch, lr):
     return 0.004
 
 def get_dataset_model(dataset_name):
+    training_schedule = None
     if dataset_name == 'MNIST':
         model = Sequential()
         model.add(Dense(512, activation='relu', kernel_regularizer=l2(1e-5),
@@ -81,22 +93,24 @@ def get_dataset_model(dataset_name):
             metrics=['accuracy']
         )
     elif dataset_name == 'CIFAR-10': 
+        training_schedule = TrainingSchedule(3 * 3600)
         model = wide_resnet(28, 2)((32, 32, 3), 10)
         model.compile(
             loss="categorical_crossentropy",
-            optimizer=SGD(lr=0.1, momentum=0.9),
+            optimizer=SGD(lr=training_schedule.lr, momentum=0.9),
             metrics=["accuracy"]
         )
     elif dataset_name == 'CIFAR-100': 
         model = wide_resnet(28, 2)((32, 32, 3), 100)
+        training_schedule = TrainingSchedule(3 * 3600)
         model.compile(
             loss="categorical_crossentropy",
-            optimizer=SGD(lr=0.1, momentum=0.9),
+            optimizer=SGD(lr=training_schedule.lr, momentum=0.9),
             metrics=["accuracy"]
         )
     else:
         raise Exception('Unknown data set name %s'%(dataset_name))
-    return model
+    return model, training_schedule
 
 def main():
     parser = get_parser()
@@ -111,7 +125,8 @@ def main():
         assert args.retrain_threshold, 'retrain_threshold is required'
 
     # Get Data
-    x_train, y_train, x_test, y_test = get_dataset(args.dataset)
+    x_train, y_train, x_test, y_test = get_dataset(args.dataset, args.whitening)
+
     # Partition train and retrain
     if args.retrain_size > 0:
         retrain_idx = len(x_train) - int(len(x_train) * args.retrain_size)
@@ -123,7 +138,7 @@ def main():
     if args.load_model:
         model = load_model(os.path.join('pre_trained', args.load_model))
     else:
-        model = get_dataset_model(args.dataset)
+        model, training_schedule = get_dataset_model(args.dataset)
 
     if args.train_score != 'uniform':
         wrapped = ImportanceTraining(
@@ -139,13 +154,58 @@ def main():
     # Train
     if not args.load_model:
         train_time = time.time()
-        history = wrapped.fit(
-            x_train, y_train,
-            batch_size=args.batch_size,
-            epochs=args.epochs,
-            verbose=0,
-            callbacks=[LearningRateScheduler(cifar_step_decay)] if is_cifar else None
-        )
+        if is_cifar and args.augment_data:
+            # ------------------------------------------------------------------------------------------
+            # From https://github.com/idiap/importance-sampling/blob/master/examples/cifar10_resnet.py
+            # Create the data augmentation generator
+            datagen = ImageDataGenerator(
+                # set input mean to 0 over the dataset
+                featurewise_center=False,
+                # set each sample mean to 0
+                samplewise_center=False,
+                # divide inputs by std of dataset
+                featurewise_std_normalization=False,
+                # divide each input by its std
+                samplewise_std_normalization=False,
+                # apply ZCA whitening
+                zca_whitening=False,
+                # randomly rotate images in the range (deg 0 to 180)
+                rotation_range=0,
+                # randomly shift images horizontally
+                width_shift_range=0.1,
+                # randomly shift images vertically
+                height_shift_range=0.1,
+                # randomly flip images
+                horizontal_flip=True,
+                # randomly flip images
+                vertical_flip=False)
+            datagen.fit(x_train)
+                # Train the model
+            if args.train_score == 'uniform':
+                model.fit_generator(
+                    datagen.flow(x_train, y_train, batch_size=args.batch_size),
+                    epochs=args.epochs,
+                    verbose=0,
+                    steps_per_epoch=int(np.ceil(float(len(x_train)) / args.batch_size)),
+                    callbacks=[training_schedule]
+                )
+            else:
+                wrapped.fit_generator(
+                    datagen.flow(x_train, y_train, batch_size=args.batch_size),
+                    epochs=args.epochs,
+                    verbose=0,
+                    batch_size=args.batch_size,
+                    steps_per_epoch=int(np.ceil(float(len(x_train)) / args.batch_size)),
+                    callbacks=[training_schedule]
+                )
+        else:
+            history = wrapped.fit(
+                x_train, y_train,
+                batch_size=args.batch_size,
+                epochs=args.epochs,
+                verbose=0,
+                callbacks=[training_schedule] if is_cifar else None,
+            )
         train_time = time.time() - train_time
         results['train_time'] = train_time
 
