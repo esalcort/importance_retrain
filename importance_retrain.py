@@ -227,7 +227,7 @@ def main():
     elif args.experiment == 'rate_retrain':
         select_count = int(args.retrain_rate * len(x_retrain))
         if args.random_retrain:
-            sample_idx = np.random.choice(len(x_retrain), select_count)
+            sample_idx = np.random.choice(len(x_retrain), select_count, replace=False)
             retrain_time = time.time()
         else:
             scores_list = list()
@@ -238,7 +238,7 @@ def main():
             wrapped.model.evaluate(x_retrain, y_retrain)
             scores = np.concatenate(scores_list).flatten()
             p = scores / scores.sum()
-            sample_idx = np.random.choice(len(x_retrain), select_count, p=p)
+            sample_idx = np.random.choice(len(x_retrain), select_count, replace=False, p=p)
         model.fit(
             x_retrain[sample_idx], y_retrain[sample_idx],
             batch_size=args.batch_size,
