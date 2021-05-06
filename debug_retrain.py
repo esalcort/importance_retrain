@@ -184,6 +184,9 @@ def main():
     # Get model
     if args.load_model:
         model = load_model(os.path.join('pre_trained', args.load_model), custom_objects={'LayerNormalization' : LayerNormalization})
+        for layer in model.layers:
+            if 'input' in layer.name:
+                layer.name='orig_' + layer.name
     else:
         model, training_schedule = get_dataset_model(args.dataset)
 
