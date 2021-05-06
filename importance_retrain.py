@@ -39,6 +39,7 @@ def get_parser():
     parser.add_argument('--save_model')
     parser.add_argument('--whitening',      action='store_true')
     parser.add_argument('--augment_data',      action='store_true')
+    parser.add_argument('--continue_training',  action='sore_true')
 
     return parser
 
@@ -153,7 +154,7 @@ def main():
 
     results = {}
     # Train
-    if not args.load_model:
+    if (not args.load_model) or args.continue_training:
         train_time = time.time()
         if is_cifar and args.augment_data:
             # ------------------------------------------------------------------------------------------
