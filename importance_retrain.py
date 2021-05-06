@@ -226,7 +226,7 @@ def main():
         retrain_time = time.time() - retrain_time
     elif args.experiment == 'rate_retrain':
         select_count = int(args.retrain_rate * len(x_retrain))
-        if args.random_retrain:
+        if args.train_score == 'uniform':
             sample_idx = np.random.choice(len(x_retrain), select_count, replace=False)
             retrain_time = time.time()
         else:
