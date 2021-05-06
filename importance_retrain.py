@@ -39,7 +39,7 @@ def get_parser():
     parser.add_argument('--save_model')
     parser.add_argument('--whitening',      action='store_true')
     parser.add_argument('--augment_data',      action='store_true')
-    parser.add_argument('--continue_training',  action='sore_true')
+    parser.add_argument('--continue_training',  action='store_true')
 
     return parser
 
