@@ -6,6 +6,7 @@ from keras.optimizers import RMSprop, SGD
 from keras.regularizers import l2
 from keras.callbacks import LearningRateScheduler
 from keras.preprocessing.image import ImageDataGenerator
+from keras import backend as K
 
 from blinker import signal
 import numpy as np
@@ -155,6 +156,9 @@ def main():
     results = {}
     # Train
     if (not args.load_model) or args.continue_training:
+        if args.continue_training and is_cifar:
+            training_schedule = TrainingSchedule(3 * 3600)
+            K.set_value(model.optimizer.lr, 0.004)
         train_time = time.time()
         if is_cifar and args.augment_data:
             # ------------------------------------------------------------------------------------------
