@@ -196,14 +196,10 @@ def main():
         x_retrain, y_retrain = load_cifar10_batch_data(int(50000*(1-args.retrain_size)), int(50000*args.retrain_size))
     else:
         x_train, y_train, x_test, y_test = get_dataset(args.dataset, args.whitening)
-
-    # Partition train and retrain
-    if args.retrain_size > 0:
+        # Partition train and retrain
         retrain_idx = len(x_train) - int(len(x_train) * args.retrain_size)
         x_retrain, y_retrain = x_train[retrain_idx:], y_train[retrain_idx:]
         x_train, y_train = x_train[:retrain_idx], y_train[:retrain_idx]
-    else:
-        x_retrain, y_retrain = [], []
     # Get model
     if args.load_model:
         model = load_model(os.path.join('pre_trained', args.load_model), custom_objects={'LayerNormalization' : LayerNormalization})
