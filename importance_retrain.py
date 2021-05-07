@@ -140,6 +140,9 @@ def main():
     # Get model
     if args.load_model:
         model = load_model(os.path.join('pre_trained', args.load_model), custom_objects={'LayerNormalization' : LayerNormalization})
+        for layer in model.layers:
+            if 'input' in layer.name:
+                layer.name='orig_' + layer.name
     else:
         model, training_schedule = get_dataset_model(args.dataset)
 
@@ -218,9 +221,9 @@ def main():
     if args.save_model:
         model.save(os.path.join('pre_trained', args.save_model))
 
-    results['start_train_acc'] = model.evaluate(x_train, y_train, verbose=0)
-    results['start_retrain_acc'] = model.evaluate(x_retrain, y_retrain, verbose=0)
-    results['start_test_acc'] = model.evaluate(x_test, y_test, verbose=0)
+    results['start_train_loss'], results['start_train_acc'] = model.evaluate(x_train, y_train, verbose=0)
+    results['start_retrain_loss'], results['start_retrain_acc'] = model.evaluate(x_retrain, y_retrain, verbose=0)
+    results['start_test_loss'], results['start_test_acc'] = model.evaluate(x_test, y_test, verbose=0)
 
     # Re-train
     if args.experiment == 'base':
