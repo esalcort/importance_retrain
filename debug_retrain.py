@@ -81,6 +81,68 @@ def cifar_step_decay(epoch, lr):
         return 0.02
     return 0.004
 
+def load_cifar10_batch_data(start, count):
+    from keras.utils.data_utils import get_file
+    from keras.datasets.cifar import load_batch
+    from keras.utils import np_utils
+
+    dirname = 'cifar-10-batches-py'
+    origin = 'https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz'
+    path = get_file(
+      dirname,
+      origin=origin,
+      untar=True,
+      file_hash=
+      '6d958be074577803d12ecdefd02955f39262c83c16fe9348329d7fe0b5c001ce')
+
+    num_batch_samples = 10000
+    first_batch = 1 + int(start / num_batch_samples)
+    last_batch = 1 + int((start + count - 1) / num_batch_samples)
+
+    temp_x = np.empty((num_batch_samples, 3, 32, 32), dtype='uint8')
+    temp_y = np.empty((num_batch_samples,), dtype='uint8')
+
+    x_train = np.empty((count, 3, 32, 32), dtype='uint8')
+    y_train = np.empty((count,), dtype='uint8')
+
+    idx_start = start % 10000
+    idx_end = 10000
+    data_offset = 0
+    rows = idx_end - idx_start
+
+    for i in range(first_batch, last_batch+1):
+        fpath = os.path.join(path, 'data_batch_'+str(i))
+        (temp_x, temp_y) = load_batch(fpath)
+        x_train[data_offset:data_offset+rows] = temp_x[idx_start: idx_end]
+        y_train[data_offset:data_offset+rows] = temp_y[idx_start: idx_end]
+        data_offset += rows
+        idx_start = 0
+        rows = 10000
+        idx_end = 10000
+        if (i + 1) == last_batch:
+            rows = count - data_offset
+            idx_end = rows
+
+
+
+    # fpath = os.path.join(path, 'test_batch')
+    # x_test, y_test = load_batch(fpath)
+
+    y_train = np.reshape(y_train, (len(y_train), 1))
+    # y_test = np.reshape(y_test, (len(y_test), 1))
+
+    if K.image_data_format() == 'channels_last':
+        x_train = x_train.transpose(0, 2, 3, 1)
+        # x_test = x_test.transpose(0, 2, 3, 1)
+
+    # x_test = x_test.astype(x_train.dtype)
+    # y_test = y_test.astype(y_train.dtype)
+
+    y_train = np_utils.to_categorical(y_train)
+
+    return (x_train, y_train)
+
+
 def get_dataset_model(dataset_name):
     training_schedule = None
     if dataset_name == 'MNIST':
@@ -121,6 +183,7 @@ def main():
     is_cifar = 'CIFAR' in args.dataset
 
     # Parser checks
+    print('Parser checks...')
     assert args.retrain_size < 1 and args.retrain_size >= 0, 'Provide retrain size as a fraction of train data'
     if args.experiment == 'rate_retrain':
         assert args.retrain_rate, 'retrain_rate is required'
@@ -128,18 +191,21 @@ def main():
         assert args.retrain_threshold, 'retrain_threshold is required'
 
     # Get Data
-    x_train, y_train, x_test, y_test = get_dataset(args.dataset, args.whitening)
-
-    # Partition train and retrain
-    if args.retrain_size > 0:
+    print('Get Data...')
+    if args.dataset == 'CIFAR-10':
+        x_retrain, y_retrain = load_cifar10_batch_data(int(50000*(1-args.retrain_size)), int(50000*args.retrain_size))
+    else:
+        x_train, y_train, x_test, y_test = get_dataset(args.dataset, args.whitening)
+        # Partition train and retrain
         retrain_idx = len(x_train) - int(len(x_train) * args.retrain_size)
         x_retrain, y_retrain = x_train[retrain_idx:], y_train[retrain_idx:]
         x_train, y_train = x_train[:retrain_idx], y_train[:retrain_idx]
-    else:
-        x_retrain, y_retrain = [], []
     # Get model
     if args.load_model:
         model = load_model(os.path.join('pre_trained', args.load_model), custom_objects={'LayerNormalization' : LayerNormalization})
+        for layer in model.layers:
+            if 'input' in layer.name:
+                layer.name='orig_' + layer.name
     else:
         model, training_schedule = get_dataset_model(args.dataset)
 
@@ -154,91 +220,29 @@ def main():
 
 
     results = {}
-    # Train
-    if (not args.load_model) or args.continue_training:
-        if args.continue_training and is_cifar:
-            training_schedule = TrainingSchedule(3 * 3600)
-            K.set_value(model.optimizer.lr, 0.004)
-        train_time = time.time()
-        if is_cifar and args.augment_data:
-            # ------------------------------------------------------------------------------------------
-            # From https://github.com/idiap/importance-sampling/blob/master/examples/cifar10_resnet.py
-            # Create the data augmentation generator
-            datagen = ImageDataGenerator(
-                # set input mean to 0 over the dataset
-                featurewise_center=False,
-                # set each sample mean to 0
-                samplewise_center=False,
-                # divide inputs by std of dataset
-                featurewise_std_normalization=False,
-                # divide each input by its std
-                samplewise_std_normalization=False,
-                # apply ZCA whitening
-                zca_whitening=False,
-                # randomly rotate images in the range (deg 0 to 180)
-                rotation_range=0,
-                # randomly shift images horizontally
-                width_shift_range=0.1,
-                # randomly shift images vertically
-                height_shift_range=0.1,
-                # randomly flip images
-                horizontal_flip=True,
-                # randomly flip images
-                vertical_flip=False)
-            datagen.fit(x_train)
-                # Train the model
-            if args.train_score == 'uniform':
-                model.fit_generator(
-                    datagen.flow(x_train, y_train, batch_size=args.batch_size),
-                    epochs=args.epochs,
-                    verbose=0,
-                    steps_per_epoch=int(np.ceil(float(len(x_train)) / args.batch_size)),
-                    callbacks=[training_schedule]
-                )
-            else:
-                wrapped.fit_generator(
-                    datagen.flow(x_train, y_train, batch_size=args.batch_size),
-                    epochs=args.epochs,
-                    verbose=0,
-                    batch_size=args.batch_size,
-                    steps_per_epoch=int(np.ceil(float(len(x_train)) / args.batch_size)),
-                    callbacks=[training_schedule]
-                )
-        else:
-            history = wrapped.fit(
-                x_train, y_train,
-                batch_size=args.batch_size,
-                epochs=args.epochs,
-                verbose=0,
-                callbacks=[training_schedule] if is_cifar else None,
-            )
-        train_time = time.time() - train_time
-        results['train_time'] = train_time
-
-    if args.save_model:
-        model.save(os.path.join('pre_trained', args.save_model))
-
+    
     # Re-train
+    print('Re-train...')
     if args.experiment == 'base':
-        retrain_time = time.time()
+        retrain_time = time.perf_counter()
         history = wrapped.fit(
             x_retrain, y_retrain,
             batch_size=args.batch_size,
             epochs=args.retrain_epochs,
             verbose=0
         )
-        retrain_time = time.time() - retrain_time
+        retrain_time = time.perf_counter() - retrain_time
     elif args.experiment == 'rate_retrain':
         select_count = int(args.retrain_rate * len(x_retrain))
         if args.train_score == 'uniform':
             sample_idx = np.random.choice(len(x_retrain), select_count, replace=False)
-            retrain_time = time.time()
+            retrain_time = time.perf_counter()
         else:
             scores_list = list()
             def on_evaluate(metrics):
                 scores_list.append(metrics[3])
             signal("is.evaluate_batch").connect(on_evaluate)
-            retrain_time = time.time()
+            retrain_time = time.perf_counter()
             wrapped.model.evaluate(x_retrain, y_retrain)
             scores = np.concatenate(scores_list).flatten()
             p = scores / scores.sum()
@@ -249,13 +253,14 @@ def main():
             epochs=args.retrain_epochs,
             verbose=0
         )
-        retrain_time = time.time() - retrain_time
+        retrain_time = time.perf_counter() - retrain_time
+        results['retrain_samples_count'] = len(sample_idx)
     elif args.experiment == 'threshold_retrain':
         scores_list = list()
         def on_evaluate(metrics):
             scores_list.append(metrics[3])
         signal("is.evaluate_batch").connect(on_evaluate)
-        retrain_time = time.time()
+        retrain_time = time.perf_counter()
         wrapped.model.evaluate(x_retrain, y_retrain)
         scores = np.concatenate(scores_list).flatten()
         samples_mask = scores > args.retrain_threshold
@@ -265,28 +270,29 @@ def main():
             epochs=args.retrain_epochs,
             verbose=0
         )
-        retrain_time = time.time() - retrain_time
+        retrain_time = time.perf_counter() - retrain_time
         results['th_true_count'] = samples_mask.sum()
 
     results['retrain_time'] = retrain_time
 
     # Evaluate
-    test_batch_count = int(len(x_test)/args.batch_size)
+    print('Evaluate...')
+    test_batch_count = int(len(x_retrain)/args.batch_size)
     if args.train_score == 'uniform':
-        fwd_time_per_batch = time.time()
-        score = model.evaluate(x_test, y_test, verbose=0)
-        fwd_time_per_batch = (time.time() - fwd_time_per_batch) / test_batch_count
+        fwd_time_per_batch = time.perf_counter()
+        score = model.evaluate(x_retrain, y_retrain, verbose=0)
+        fwd_time_per_batch = (time.perf_counter() - fwd_time_per_batch) / test_batch_count
     else:
-        fwd_time_per_batch = time.time()
-        score = wrapped.model.evaluate(x_test, y_test)
-        fwd_time_per_batch = (time.time() - fwd_time_per_batch) / test_batch_count
+        fwd_time_per_batch = time.perf_counter()
+        score = wrapped.model.evaluate(x_retrain, y_retrain)
+        fwd_time_per_batch = (time.perf_counter() - fwd_time_per_batch) / test_batch_count
     results['fwd_time_per_batch'] = fwd_time_per_batch
 
-    results['test_loss'] = score[0]
-    results['test_acc'] = score[1]
+    results['retrain_loss'] = score[0]
+    results['retrain_acc'] = score[1]
 
-    results['train_loss'], results['train_acc'] = model.evaluate(x_train, y_train, verbose=0)
-    results['retrain_loss'], results['retrain_acc'] = model.evaluate(x_retrain, y_retrain, verbose=0)
+    # results['train_loss'], results['train_acc'] = model.evaluate(x_train, y_train, verbose=0)
+    # results['retrain_loss'], results['retrain_acc'] = model.evaluate(x_retrain, y_retrain, verbose=0)
 
     # Print results
     print('Configuration:')
