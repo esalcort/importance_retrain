@@ -205,25 +205,25 @@ def main():
     # Re-train
     print('Re-train...')
     if args.experiment == 'base':
-        retrain_time = time.time()
+        retrain_time = time.perf_counter()
         history = wrapped.fit(
             x_retrain, y_retrain,
             batch_size=args.batch_size,
             epochs=args.retrain_epochs,
             verbose=0
         )
-        retrain_time = time.time() - retrain_time
+        retrain_time = time.perf_counter() - retrain_time
     elif args.experiment == 'rate_retrain':
         select_count = int(args.retrain_rate * len(x_retrain))
         if args.train_score == 'uniform':
             sample_idx = np.random.choice(len(x_retrain), select_count, replace=False)
-            retrain_time = time.time()
+            retrain_time = time.perf_counter()
         else:
             scores_list = list()
             def on_evaluate(metrics):
                 scores_list.append(metrics[3])
             signal("is.evaluate_batch").connect(on_evaluate)
-            retrain_time = time.time()
+            retrain_time = time.perf_counter()
             wrapped.model.evaluate(x_retrain, y_retrain)
             scores = np.concatenate(scores_list).flatten()
             p = scores / scores.sum()
@@ -234,13 +234,14 @@ def main():
             epochs=args.retrain_epochs,
             verbose=0
         )
-        retrain_time = time.time() - retrain_time
+        retrain_time = time.perf_counter() - retrain_time
+        results['retrain_samples_count'] = len(sample_idx)
     elif args.experiment == 'threshold_retrain':
         scores_list = list()
         def on_evaluate(metrics):
             scores_list.append(metrics[3])
         signal("is.evaluate_batch").connect(on_evaluate)
-        retrain_time = time.time()
+        retrain_time = time.perf_counter()
         wrapped.model.evaluate(x_retrain, y_retrain)
         scores = np.concatenate(scores_list).flatten()
         samples_mask = scores > args.retrain_threshold
@@ -250,21 +251,22 @@ def main():
             epochs=args.retrain_epochs,
             verbose=0
         )
-        retrain_time = time.time() - retrain_time
+        retrain_time = time.perf_counter() - retrain_time
         results['th_true_count'] = samples_mask.sum()
 
     results['retrain_time'] = retrain_time
 
     # Evaluate
+    print('Evaluate...')
     test_batch_count = int(len(x_retrain)/args.batch_size)
     if args.train_score == 'uniform':
-        fwd_time_per_batch = time.time()
+        fwd_time_per_batch = time.perf_counter()
         score = model.evaluate(x_retrain, y_retrain, verbose=0)
-        fwd_time_per_batch = (time.time() - fwd_time_per_batch) / test_batch_count
+        fwd_time_per_batch = (time.perf_counter() - fwd_time_per_batch) / test_batch_count
     else:
-        fwd_time_per_batch = time.time()
+        fwd_time_per_batch = time.perf_counter()
         score = wrapped.model.evaluate(x_retrain, y_retrain)
-        fwd_time_per_batch = (time.time() - fwd_time_per_batch) / test_batch_count
+        fwd_time_per_batch = (time.perf_counter() - fwd_time_per_batch) / test_batch_count
     results['fwd_time_per_batch'] = fwd_time_per_batch
 
     results['retrain_loss'] = score[0]
