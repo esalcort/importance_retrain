@@ -41,6 +41,7 @@ def get_parser():
     parser.add_argument('--whitening',      action='store_true')
     parser.add_argument('--augment_data',      action='store_true')
     parser.add_argument('--continue_training',  action='store_true')
+    parser.add_argument('--relearning_rate')
 
     return parser
 
@@ -140,6 +141,7 @@ def main():
     # Get model
     if args.load_model:
         model = load_model(os.path.join('pre_trained', args.load_model), custom_objects={'LayerNormalization' : LayerNormalization})
+        if args.relearning_rate: K.set_value(model.optimizer.lr, args.relearning_rate)
         for layer in model.layers:
             if 'input' in layer.name:
                 layer.name='orig_' + layer.name
@@ -161,7 +163,6 @@ def main():
     if (not args.load_model) or args.continue_training:
         if args.continue_training and is_cifar:
             training_schedule = TrainingSchedule(3 * 3600)
-            K.set_value(model.optimizer.lr, 0.004)
         train_time = time.time()
         if is_cifar and args.augment_data:
             # ------------------------------------------------------------------------------------------
