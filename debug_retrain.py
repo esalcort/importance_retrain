@@ -81,7 +81,7 @@ def cifar_step_decay(epoch, lr):
         return 0.02
     return 0.004
 
-def load_cifar_single_batch():
+def load_cifar10_batch_data(start, count):
     from keras.utils.data_utils import get_file
     from keras.datasets.cifar import load_batch
     from keras.utils import np_utils
@@ -96,12 +96,34 @@ def load_cifar_single_batch():
       '6d958be074577803d12ecdefd02955f39262c83c16fe9348329d7fe0b5c001ce')
 
     num_batch_samples = 10000
+    first_batch = 1 + int(start / num_batch_samples)
+    last_batch = 1 + int((start + count - 1) / num_batch_samples)
 
-    x_train = np.empty((num_batch_samples, 3, 32, 32), dtype='uint8')
-    y_train = np.empty((num_batch_samples,), dtype='uint8')
+    temp_x = np.empty((num_batch_samples, 3, 32, 32), dtype='uint8')
+    temp_y = np.empty((num_batch_samples,), dtype='uint8')
 
-    fpath = os.path.join(path, 'data_batch_5')
-    (x_train, y_train) = load_batch(fpath)
+    x_train = np.empty((count, 3, 32, 32), dtype='uint8')
+    y_train = np.empty((count,), dtype='uint8')
+
+    idx_start = start % 10000
+    idx_end = 10000
+    data_offset = 0
+    rows = idx_end - idx_start
+
+    for i in range(first_batch, last_batch+1):
+        fpath = os.path.join(path, 'data_batch_'+str(i))
+        (temp_x, temp_y) = load_batch(fpath)
+        x_train[data_offset:data_offset+rows] = temp_x[idx_start: idx_end]
+        y_train[data_offset:data_offset+rows] = temp_y[idx_start: idx_end]
+        data_offset += rows
+        idx_start = 0
+        rows = 10000
+        idx_end = 10000
+        if (i + 1) == last_batch:
+            rows = count - data_offset
+            idx_end = rows
+
+
 
     # fpath = os.path.join(path, 'test_batch')
     # x_test, y_test = load_batch(fpath)
@@ -170,17 +192,18 @@ def main():
 
     # Get Data
     print('Get Data...')
-    # x_train, y_train, x_test, y_test = get_dataset(args.dataset, args.whitening)
-    x_retrain, y_retrain = load_cifar_single_batch()
-
+    if args.dataset == 'CIFAR-10':
+        x_retrain, y_retrain = load_cifar10_batch_data(int(50000*(1-args.retrain_size)), int(50000*args.retrain_size))
+    else:
+        x_train, y_train, x_test, y_test = get_dataset(args.dataset, args.whitening)
 
     # Partition train and retrain
-    # if args.retrain_size > 0:
-    #     retrain_idx = len(x_train) - int(len(x_train) * args.retrain_size)
-    #     x_retrain, y_retrain = x_train[retrain_idx:], y_train[retrain_idx:]
-    #     x_train, y_train = x_train[:retrain_idx], y_train[:retrain_idx]
-    # else:
-    #     x_retrain, y_retrain = [], []
+    if args.retrain_size > 0:
+        retrain_idx = len(x_train) - int(len(x_train) * args.retrain_size)
+        x_retrain, y_retrain = x_train[retrain_idx:], y_train[retrain_idx:]
+        x_train, y_train = x_train[:retrain_idx], y_train[:retrain_idx]
+    else:
+        x_retrain, y_retrain = [], []
     # Get model
     if args.load_model:
         model = load_model(os.path.join('pre_trained', args.load_model), custom_objects={'LayerNormalization' : LayerNormalization})
