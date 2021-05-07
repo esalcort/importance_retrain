@@ -218,6 +218,10 @@ def main():
     if args.save_model:
         model.save(os.path.join('pre_trained', args.save_model))
 
+    results['start_train_acc'] = model.evaluate(x_train, y_train, verbose=0)
+    results['start_retrain_acc'] = model.evaluate(x_retrain, y_retrain, verbose=0)
+    results['start_test_acc'] = model.evaluate(x_test, y_test, verbose=0)
+
     # Re-train
     if args.experiment == 'base':
         retrain_time = time.time()
@@ -229,27 +233,50 @@ def main():
         )
         retrain_time = time.time() - retrain_time
     elif args.experiment == 'rate_retrain':
-        select_count = int(args.retrain_rate * len(x_retrain))
+        fwd_sample_count = int(args.batch_size * args.presample)
+        bwd_sample_count = int(args.retrain_rate * fwd_sample_count)
+        assert bwd_sample_count >= 1, 'Select a larger retrain_rate'
+        results['fwd_sample_count'] = fwd_sample_count
+        results['bwd_sample_count'] = bwd_sample_count
         if args.train_score == 'uniform':
-            sample_idx = np.random.choice(len(x_retrain), select_count, replace=False)
-            retrain_time = time.time()
+            retrain_time = time.perf_counter()
+            for b in range(0, len(y_retrain), fwd_sample_count):
+                fwd_x, fwd_y = x_retrain[b:b+fwd_sample_count], y_retrain[b:b+fwd_sample_count]
+                # Simulate Forward pass:
+                model.evaluate(fwd_x, fwd_y, verbose=0)
+                if bwd_sample_count < len(fwd_x):
+                    # Sample uniformly
+                    sample_idx = np.random.choice(len(fwd_x), bwd_sample_count, replace=False)
+                    # Simulate Backward pass:
+                    model.fit(fwd_x[sample_idx], fwd_y[sample_idx], batch_size=bwd_sample_count, verbose=0,
+                        epochs=args.retrain_epochs)
+                else:
+                    model.fit(fwd_x, fwd_y, batch_size=len(fwd_x), verbose=0, epochs=args.retrain_epochs)
+            retrain_time = time.perf_counter() - retrain_time
+            
         else:
             scores_list = list()
             def on_evaluate(metrics):
                 scores_list.append(metrics[3])
             signal("is.evaluate_batch").connect(on_evaluate)
-            retrain_time = time.time()
-            wrapped.model.evaluate(x_retrain, y_retrain)
-            scores = np.concatenate(scores_list).flatten()
-            p = scores / scores.sum()
-            sample_idx = np.random.choice(len(x_retrain), select_count, replace=False, p=p)
-        model.fit(
-            x_retrain[sample_idx], y_retrain[sample_idx],
-            batch_size=args.batch_size,
-            epochs=args.retrain_epochs,
-            verbose=0
-        )
-        retrain_time = time.time() - retrain_time
+            retrain_time = time.perf_counter()
+            for b in range(0, len(y_retrain), fwd_sample_count):
+                fwd_x, fwd_y = x_retrain[b:b+fwd_sample_count], y_retrain[b:b+fwd_sample_count]
+                # Simulate Forward pass
+                scores_list = []
+                wrapped.model.evaluate(fwd_x, fwd_y)
+                # Collect importance metrics
+                scores = np.concatenate(scores_list).flatten()
+                p = scores / scores.sum()
+                if bwd_sample_count < len(fwd_x):
+                    # Sample based on metrics
+                    sample_idx = np.random.choice(len(fwd_x), bwd_sample_count, replace=False, p=p)
+                    # Simulate Backward pass
+                    model.fit(fwd_x[sample_idx], fwd_y[sample_idx], batch_size=bwd_sample_count, verbose=0,
+                        epochs=args.retrain_epochs)
+                else:
+                    model.fit(fwd_x, fwd_y, batch_size=len(fwd_x), verbose=0, epochs=args.retrain_epochs)
+            retrain_time = time.perf_counter() - retrain_time
     elif args.experiment == 'threshold_retrain':
         scores_list = list()
         def on_evaluate(metrics):
@@ -271,22 +298,21 @@ def main():
     results['retrain_time'] = retrain_time
 
     # Evaluate
-    test_batch_count = int(len(x_test)/args.batch_size)
     if args.train_score == 'uniform':
         fwd_time_per_batch = time.time()
         score = model.evaluate(x_test, y_test, verbose=0)
-        fwd_time_per_batch = (time.time() - fwd_time_per_batch) / test_batch_count
+        fwd_time_per_batch = (time.time() - fwd_time_per_batch) / len(x_test)
     else:
         fwd_time_per_batch = time.time()
         score = wrapped.model.evaluate(x_test, y_test)
-        fwd_time_per_batch = (time.time() - fwd_time_per_batch) / test_batch_count
+        fwd_time_per_batch = (time.time() - fwd_time_per_batch) / len(x_test)
     results['fwd_time_per_batch'] = fwd_time_per_batch
 
-    results['test_loss'] = score[0]
-    results['test_acc'] = score[1]
+    results['end_test_loss'] = score[0]
+    results['end_test_acc'] = score[1]
 
-    results['train_loss'], results['train_acc'] = model.evaluate(x_train, y_train, verbose=0)
-    results['retrain_loss'], results['retrain_acc'] = model.evaluate(x_retrain, y_retrain, verbose=0)
+    results['end_train_loss'], results['end_train_acc'] = model.evaluate(x_train, y_train, verbose=0)
+    results['end_retrain_loss'], results['end_retrain_acc'] = model.evaluate(x_retrain, y_retrain, verbose=0)
 
     # Print results
     print('Configuration:')
