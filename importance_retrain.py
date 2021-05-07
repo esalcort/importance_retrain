@@ -303,14 +303,14 @@ def main():
 
     # Evaluate
     if args.train_score == 'uniform':
-        fwd_time_per_batch = time.time()
+        fwd_time_per_sample = time.time()
         score = model.evaluate(x_test, y_test, verbose=0)
-        fwd_time_per_batch = (time.time() - fwd_time_per_batch) / len(x_test)
+        fwd_time_per_sample = (time.time() - fwd_time_per_sample) / len(x_test)
     else:
-        fwd_time_per_batch = time.time()
+        fwd_time_per_sample = time.time()
         score = wrapped.model.evaluate(x_test, y_test)
-        fwd_time_per_batch = (time.time() - fwd_time_per_batch) / len(x_test)
-    results['fwd_time_per_batch'] = fwd_time_per_batch
+        fwd_time_per_sample = (time.time() - fwd_time_per_sample) / len(x_test)
+    results['fwd_time_per_sample'] = fwd_time_per_sample
 
     results['end_test_loss'] = score[0]
     results['end_test_acc'] = score[1]
