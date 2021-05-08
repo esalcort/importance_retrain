@@ -1,0 +1,54 @@
+90
+Configuration:
+Namespace(augment_data=False, batch_size=128, dataset='MNIST', epochs=10, experiment='base', load_model=None, presample=5.0, random_retrain=False, retrain_epochs=1, retrain_rate=None, retrain_size=0.9, retrain_threshold=None, save_model='mnist_uniform_10.h5', train_score='uniform', whitening=False)
+
+Results:
+{'train_time': 3.973459482192993, 'retrain_time': 3.4424896240234375, 'fwd_time_per_batch': 0.00766145266019381, 'test_loss': 0.10368946453630924, 'test_acc': 0.9723, 'train_loss': 0.049255607629815734, 'train_acc': 0.9895, 'retrain_loss': 0.07887781657388916, 'retrain_acc': 0.9795}
+80
+Configuration:
+Namespace(augment_data=False, batch_size=128, dataset='MNIST', epochs=10, experiment='base', load_model=None, presample=5.0, random_retrain=False, retrain_epochs=1, retrain_rate=None, retrain_size=0.8, retrain_threshold=None, save_model='mnist_uniform_20.h5', train_score='uniform', whitening=False)
+
+Results:
+{'train_time': 7.7546937465667725, 'retrain_time': 2.671339511871338, 'fwd_time_per_batch': 0.007606711143102401, 'test_loss': 0.0892420672878623, 'test_acc': 0.9772, 'train_loss': 0.041075447579224905, 'train_acc': 0.99125, 'retrain_loss': 0.06638564215910932, 'retrain_acc': 0.9836666666666667}
+70
+Configuration:
+Namespace(augment_data=False, batch_size=128, dataset='MNIST', epochs=10, experiment='base', load_model=None, presample=5.0, random_retrain=False, retrain_epochs=1, retrain_rate=None, retrain_size=0.7, retrain_threshold=None, save_model='mnist_uniform_30.h5', train_score='uniform', whitening=False)
+
+Results:
+{'train_time': 11.084995031356812, 'retrain_time': 2.2975738048553467, 'fwd_time_per_batch': 0.0072626456236227965, 'test_loss': 0.09722676428854465, 'test_acc': 0.9743, 'train_loss': 0.04552785319586595, 'train_acc': 0.9900555555555556, 'retrain_loss': 0.06902922521815413, 'retrain_acc': 0.982547619047619}
+60
+Configuration:
+Namespace(augment_data=False, batch_size=128, dataset='MNIST', epochs=10, experiment='base', load_model=None, presample=5.0, random_retrain=False, retrain_epochs=1, retrain_rate=None, retrain_size=0.6, retrain_threshold=None, save_model='mnist_uniform_40.h5', train_score='uniform', whitening=False)
+
+Results:
+{'train_time': 15.751041889190674, 'retrain_time': 2.606894016265869, 'fwd_time_per_batch': 0.017823555530645907, 'test_loss': 0.08562495631724595, 'test_acc': 0.9789, 'train_loss': 0.0334954411064585, 'train_acc': 0.9937083333333333, 'retrain_loss': 0.0602277468856838, 'retrain_acc': 0.9853333333333333}
+50
+Configuration:
+Namespace(augment_data=False, batch_size=128, dataset='MNIST', epochs=10, experiment='base', load_model=None, presample=5.0, random_retrain=False, retrain_epochs=1, retrain_rate=None, retrain_size=0.5, retrain_threshold=None, save_model='mnist_uniform_50.h5', train_score='uniform', whitening=False)
+
+Results:
+{'train_time': 17.148499727249146, 'retrain_time': 1.5828089714050293, 'fwd_time_per_batch': 0.008269572869325295, 'test_loss': 0.10047027846872807, 'test_acc': 0.974, 'train_loss': 0.04154689724047979, 'train_acc': 0.9912333333333333, 'retrain_loss': 0.06636711997191111, 'retrain_acc': 0.9830666666666666}
+40
+Configuration:
+Namespace(augment_data=False, batch_size=128, dataset='MNIST', epochs=10, experiment='base', load_model=None, presample=5.0, random_retrain=False, retrain_epochs=1, retrain_rate=None, retrain_size=0.4, retrain_threshold=None, save_model='mnist_uniform_60.h5', train_score='uniform', whitening=False)
+
+Results:
+{'train_time': 27.479339599609375, 'retrain_time': 1.4256181716918945, 'fwd_time_per_batch': 0.012270117417359963, 'test_loss': 0.08381380273699761, 'test_acc': 0.9772, 'train_loss': 0.03305963354640537, 'train_acc': 0.9936944444444444, 'retrain_loss': 0.05510126644497117, 'retrain_acc': 0.98675}
+30
+Configuration:
+Namespace(augment_data=False, batch_size=128, dataset='MNIST', epochs=10, experiment='base', load_model=None, presample=5.0, random_retrain=False, retrain_epochs=1, retrain_rate=None, retrain_size=0.3, retrain_threshold=None, save_model='mnist_uniform_70.h5', train_score='uniform', whitening=False)
+
+Results:
+{'train_time': 32.16153621673584, 'retrain_time': 1.301177740097046, 'fwd_time_per_batch': 0.010918201544345954, 'test_loss': 0.07844163877665997, 'test_acc': 0.9816, 'train_loss': 0.030216480978188062, 'train_acc': 0.9952857142857143, 'retrain_loss': 0.04463721320695347, 'retrain_acc': 0.9908888888888889}
+20
+Configuration:
+Namespace(augment_data=False, batch_size=128, dataset='MNIST', epochs=10, experiment='base', load_model=None, presample=5.0, random_retrain=False, retrain_epochs=1, retrain_rate=None, retrain_size=0.2, retrain_threshold=None, save_model='mnist_uniform_80.h5', train_score='uniform', whitening=False)
+
+Results:
+{'train_time': 35.09823799133301, 'retrain_time': 1.3760666847229004, 'fwd_time_per_batch': 0.013115418262970753, 'test_loss': 0.09013713702261449, 'test_acc': 0.9791, 'train_loss': 0.033651315469294785, 'train_acc': 0.9935416666666667, 'retrain_loss': 0.04457481465985377, 'retrain_acc': 0.9908333333333333}
+10
+Configuration:
+Namespace(augment_data=False, batch_size=128, dataset='MNIST', epochs=10, experiment='base', load_model=None, presample=5.0, random_retrain=False, retrain_epochs=1, retrain_rate=None, retrain_size=0.1, retrain_threshold=None, save_model='mnist_uniform_90.h5', train_score='uniform', whitening=False)
+
+Results:
+{'train_time': 36.66510796546936, 'retrain_time': 0.3112623691558838, 'fwd_time_per_batch': 0.01238081394097744, 'test_loss': 0.09373436846733094, 'test_acc': 0.9797, 'train_loss': 0.027397067603689654, 'train_acc': 0.9946111111111111, 'retrain_loss': 0.02933274233341217, 'retrain_acc': 0.9956666666666667}
