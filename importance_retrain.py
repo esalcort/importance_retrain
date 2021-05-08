@@ -274,7 +274,11 @@ def main():
                 p = scores / scores.sum()
                 if bwd_sample_count < len(fwd_x):
                     # Sample based on metrics
-                    sample_idx = np.random.choice(len(fwd_x), bwd_sample_count, replace=False, p=p)
+                    try:
+                        sample_idx = np.random.choice(len(fwd_x), bwd_sample_count, replace=False, p=p)
+                    except ValueError:
+                        if (p != 0).sum() < bwd_sample_count:
+                            sample_idx = np.nonzero(p)
                     # Simulate Backward pass
                     model.fit(fwd_x[sample_idx], fwd_y[sample_idx], batch_size=bwd_sample_count, verbose=0,
                         epochs=args.retrain_epochs)
