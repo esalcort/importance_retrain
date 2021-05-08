@@ -266,7 +266,7 @@ def main():
                 scores_list = []
                 wrapped.model.evaluate(fwd_x, fwd_y)
                 # Collect importance metrics
-                scores = np.concatenate(scores_list).flatten()
+                scores = np.concatenate(scores_list).flatten() + 10**-9
                 p = scores / scores.sum()
                 if bwd_sample_count < len(fwd_x):
                     # Sample based on metrics
